@@ -11,11 +11,14 @@ import com.fspt.safedrive.bean.Person;
 import com.fspt.safedrive.utils.DriverBehavior;
 import com.google.gson.Gson;
 
+import java.text.DecimalFormat;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private TextView tvResult;
     private ImageView iv;
+    int[] resids = {R.mipmap.driver1, R.mipmap.driver2, R.mipmap.driver3, R.mipmap.driver4, R.mipmap.driver5};
+    int showIndex = resids.length;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,15 +36,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.ivOrig:
+                showIndex++;
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        String ret = new DriverBehavior().
-                                driver_behavior("/sdcard/Pictures/driver3.jpg");
-
-                        Gson gson = new Gson();
-                        Person person = gson.fromJson(ret, Person.class);
-                        ParseJsonResult(person);
+                        synchronized (MainActivity.this) {
+                            String ret = new DriverBehavior().
+                                    driver_behavior(MainActivity.this, resids[showIndex % resids.length]);
+                            Gson gson = new Gson();
+                            Person person = gson.fromJson(ret, Person.class);
+                            ParseJsonResult(person);
+                        }
                     }
                 }).start();
 
@@ -53,21 +58,26 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     public static final String TAG = "HHHH";
-    private void ParseJsonResult(Person p){
+
+    private void ParseJsonResult(Person p) {
         List<Person.PersonInfoDTO> person_info = p.getPerson_info();
+        if (person_info == null || person_info.size() <= 0) return;
+
         Person.PersonInfoDTO personInfoDTO = person_info.get(0);
         Person.PersonInfoDTO.AttributesDTO attributes = personInfoDTO.getAttributes();
-
-        Double eyeScore = attributes.getEyes_closed().getScore();
-        Double cellPhoneScore = attributes.getCellphone().getScore();
-        Double smokeScore = attributes.getSmoke().getScore();
-        double yawningScore = attributes.getYawning().getScore();
+        DecimalFormat df = new DecimalFormat("#.00");
+        String eyeCloseScore = df.format(attributes.getEyes_closed().getScore() * 100) + " %";
+        String cellPhoneScore = df.format(attributes.getCellphone().getScore() * 100) + " %";
+        String smokeScore = df.format(attributes.getSmoke().getScore() * 100) + " %";
+        String yawningScore = df.format(attributes.getYawning().getScore() * 100) + " %";
 
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                iv.setImageResource(resids[showIndex % resids.length]);
+
                 StringBuilder sb = new StringBuilder();
-                sb.append("Eye close Score: ").append(eyeScore).append("\r\n")
+                sb.append("Eye close Score: ").append(eyeCloseScore).append("\r\n")
                         .append("CellPhone Score: ").append(cellPhoneScore).append("\r\n")
                         .append("Smoke Score: ").append(smokeScore).append("\r\n")
                         .append("yawning Score: ").append(yawningScore).append("\r\n");

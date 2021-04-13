@@ -1,12 +1,12 @@
 package com.fspt.safedrive.utils;
 
-import android.util.Log;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 import com.fspt.safedrive.service.AuthService;
-import com.fspt.safedrive.utils.Base64Util;
-import com.fspt.safedrive.utils.FileUtil;
-import com.fspt.safedrive.utils.HttpUtil;
 
+import java.io.ByteArrayOutputStream;
 import java.net.URLEncoder;
 
 /**
@@ -22,19 +22,23 @@ public class DriverBehavior {
      * https://ai.baidu.com/file/470B3ACCA3FE43788B5A963BF0B625F3
      * 下载
      */
-    public  String driver_behavior(String filePath) {
+    public static  final String accessToken ;
+    static {
+        accessToken = AuthService.getAuth();
+    }
+
+    public String driver_behavior(Context ctx, int resId) {
         // 请求url
         String url = "https://aip.baidubce.com/rest/2.0/image-classify/v1/driver_behavior";
         try {
-
-            byte[] imgData = FileUtil.readFileByBytes(filePath);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Bitmap bm = BitmapFactory.decodeResource(ctx.getResources(), resId);
+            bm.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+            byte[] imgData = baos.toByteArray();
             String imgStr = Base64Util.encode(imgData);
             String imgParam = URLEncoder.encode(imgStr, "UTF-8");
-
             String param = "image=" + imgParam;
-
             // 注意这里仅为了简化编码每一次请求都去获取access_token，线上环境access_token有过期时间， 客户端可自行缓存，过期后重新获取。
-            String accessToken = AuthService.getAuth();
             String result = HttpUtil.post(url, accessToken, param);
             return result;
         } catch (Exception e) {
@@ -43,6 +47,24 @@ public class DriverBehavior {
         return null;
     }
 
+
+    public String driver_behavior(Context ctx, String filePath) {
+        // 请求url
+        String url = "https://aip.baidubce.com/rest/2.0/image-classify/v1/driver_behavior";
+        try {
+
+            byte[] imgData = FileUtil.readFileByBytes(filePath);
+            String imgStr = Base64Util.encode(imgData);
+            String imgParam = URLEncoder.encode(imgStr, "UTF-8");
+            String param = "image=" + imgParam;
+            // 注意这里仅为了简化编码每一次请求都去获取access_token，线上环境access_token有过期时间， 客户端可自行缓存，过期后重新获取。
+            String result = HttpUtil.post(url, accessToken, param);
+            return result;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 
 
 }
