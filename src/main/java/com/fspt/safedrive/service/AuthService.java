@@ -83,6 +83,6 @@ public class AuthService {
             System.err.printf("获取token失败！");
             e.printStackTrace(System.err);
         }
-        return null;
+        return "";
     }
 }

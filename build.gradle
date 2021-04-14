@@ -5,15 +5,44 @@ plugins {
 android {
     compileSdkVersion 30
     buildToolsVersion "30.0.2"
-
+    ndkVersion "21.2.6472646"
     defaultConfig {
         applicationId "com.fspt.safedrive"
         minSdkVersion 23
-        targetSdkVersion 30
+        targetSdkVersion 28
         versionCode 1
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        vectorDrawables.useSupportLibrary = true // support svg
+        multiDexEnabled true
+
+        android.applicationVariants.all { variant ->
+            variant.outputs.all {
+                def fileName
+                if (variant.buildType.name == "release") {
+                    fileName = "SafeDriver.apk"
+                } else {
+                    fileName = "SafeDriver_Beta_V${defaultConfig.versionName}.apk"
+                }
+                outputFileName = fileName
+            }
+        }
+
+        // 对架构的支持,现在优化为只关注的四类 CPU 架构 ,"x86_64",armeabi-v7a"
+        ndk {
+            abiFilters "x86",'armeabi-v7a'
+        }
+
+        splits {
+            abi {
+                enable true
+                reset()
+                include 'x86','armeabi-v7a'//, 'x86_64', 'armeabi-v7a', 'arm64-v8a' //select ABIs to build APKs for
+                universalApk true //generate an additional APK that contains all the ABIs
+            }
+        }
     }
 
     buildTypes {
@@ -22,9 +51,49 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    packagingOptions {
+        exclude 'META-INF/services/javax.annotation.processing.Processor'
+        pickFirst 'META-INF/maven/org.bytedeco.javacpp-presets/opencv/pom.properties'
+        pickFirst 'META-INF/maven/org.bytedeco.javacpp-presets/ffmpeg/pom.properties'
+        pickFirst 'META-INF/maven/org.bytedeco.javacpp-presets/opencv/pom.xml'
+        pickFirst 'META-INF/maven/org.bytedeco.javacpp-presets/ffmpeg/pom.xml'
+    }
+
+    android {
+        useLibrary 'org.apache.http.legacy'
+    }
+
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    //  ResDir
+    sourceSets {
+        main() {
+//            res.srcDirs += "src/main/res"
+            // 默认是 jniLibs
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    lintOptions {
+        checkReleaseBuilds false
+        // Or, if you prefer, you can continue to check for errors in release builds,
+        // but continue the build even when errors are found:
+        abortOnError false
+    }
+
+
+    productFlavors {
+    }
+
+    repositories {
+        flatDir {
+            dirs 'libs'   // aar目录
+        }
     }
 }
 
@@ -42,6 +111,22 @@ dependencies {
     api 'com.squareup.retrofit2:converter-gson:2.8.1'
     api 'com.squareup.retrofit2:converter-scalars:2.8.1'
     api 'com.google.code.gson:gson:2.8.6'
+
+
+
+    implementation 'org.bytedeco:javacv:1.5.4'
+    implementation 'org.bytedeco.javacpp-presets:opencv:4.0.1-1.4.4:android-x86'
+    implementation 'org.bytedeco.javacpp-presets:ffmpeg:4.1-1.4.4:android-x86'
+    implementation 'org.bytedeco.javacpp-presets:openblas:0.3.5-1.4.4:android-x86'
+
+
+    implementation 'org.bytedeco.javacpp-presets:opencv:4.0.1-1.4.4:android-arm'
+    implementation 'org.bytedeco.javacpp-presets:ffmpeg:4.1-1.4.4:android-arm'
+    implementation 'org.bytedeco.javacpp-presets:openblas:0.3.5-1.4.4:android-arm'
+
+
+    implementation 'org.greenrobot:eventbus:3.1.1'
+    implementation 'androidx.recyclerview:recyclerview:1.1.0'
 
     testImplementation 'junit:junit:4.+'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'
