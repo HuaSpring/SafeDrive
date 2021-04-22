@@ -5,10 +5,10 @@ plugins {
 android {
     compileSdkVersion 30
     buildToolsVersion "30.0.2"
-    ndkVersion "21.2.6472646"
+//    ndkVersion "21.2.6472646"
     defaultConfig {
         applicationId "com.fspt.safedrive"
-        minSdkVersion 23
+        minSdkVersion 22
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"

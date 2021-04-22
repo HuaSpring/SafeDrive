@@ -79,9 +79,8 @@ public class DriverBehavior {
         return "";
     }
 
-
     public String driver_behavior(Context ctx, String filePath) {
-        // 请求url
+
         try {
             byte[] imgData = FileUtil.readFileByBytes(filePath);
             return doHttpPost(imgData);
@@ -94,6 +93,7 @@ public class DriverBehavior {
 
     private String doHttpPost(byte[] imgData) {
         try {
+            //1、对本地图片进行编码
             String imgStr = Base64Util.encode(imgData);
             String imgParam = URLEncoder.encode(imgStr, "UTF-8");
             String param = "image=" + imgParam;
@@ -101,6 +101,7 @@ public class DriverBehavior {
             if(TextUtils.isEmpty(accessToken)){
                 accessToken = AuthService.getAuth();
             }
+
             String result = HttpUtil.post(BASE_URL, accessToken, param);
             return result;
         } catch (Exception e) {

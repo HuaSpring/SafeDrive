@@ -25,10 +25,11 @@ public class AuthService {
      * }
      */
     public static String getAuth() {
+        //2、 用户鉴权认证
         // 官网获取的 API Key 更新为你注册的
-        String clientId = Constants.Yujiahao.API_KEY;
+        String clientId = Constants.YTOKEN.API_KEY;
         // 官网获取的 Secret Key 更新为你注册的
-        String clientSecret = Constants.Yujiahao.SECURITY_KEY;
+        String clientSecret = Constants.YTOKEN.SECURITY_KEY;
         return getAuth(clientId, clientSecret);
     }
 

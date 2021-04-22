@@ -4,19 +4,17 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Looper;
-import android.os.Message;
-import android.os.Process;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.View;
-import android.widget.Button;
+import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -26,23 +24,32 @@ import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 
+import com.fspt.safedrive.adapter.DriverPicAdapter;
 import com.fspt.safedrive.bean.Person;
+import com.fspt.safedrive.event.DangerDriverEvent;
+import com.fspt.safedrive.global.Constants;
 import com.fspt.safedrive.utils.DriverBehavior;
-import com.fspt.safedrive.utils.FFMpegUtils;
+import com.fspt.safedrive.utils.FileUtil;
+import com.fspt.safedrive.utils.SecurityUtils;
+import com.fspt.safedrive.utils.TTSUtils;
 import com.google.gson.Gson;
 
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
+import java.io.File;
 import java.text.DecimalFormat;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private TextView tvResult;
     private ImageView iv;
-    private Button btnVideo;
-    private Button btnShowVideo;
+    private GridView gv;
     private DriverBehavior driverBehavior;
     private Handler showVideoHandler;
-    int[] resids = {R.mipmap.driver1, R.mipmap.driver2, R.mipmap.driver3,
-            R.mipmap.driver4, R.mipmap.driver5, R.mipmap.driver_cctv};
+    int[] resids = {R.mipmap.driver1, R.mipmap.driver2,
+            R.mipmap.driver4, R.mipmap.driver5, R.mipmap.driver6, R.mipmap.driver7};
     int showIndex = resids.length;
     private String videoPath = "/sdcard/Movies/driver.mp4";
 
@@ -52,25 +59,58 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         setContentView(R.layout.activity_main);
 
 
-        iv = findViewById(R.id.ivOrig);
-        iv.setOnClickListener(this);
-        btnVideo = findViewById(R.id.btnVideo);
-        btnVideo.setOnClickListener(this);
+        initViewAndDatas();
+        initEventBusEvent();
+        initTTS();
 
-        btnShowVideo = findViewById(R.id.btnShowVideo);
-        btnShowVideo.setOnClickListener(this);
+    }
 
+    private DriverPicAdapter mDriverPicAdapter;
+    private GridViewOnClickListener gridViewOnClickListener;
+
+    private void initViewAndDatas() {
+        gv = findViewById(R.id.gv);
+        mDriverPicAdapter = new DriverPicAdapter(resids);
+        gv.setAdapter(mDriverPicAdapter);
+        gridViewOnClickListener = new GridViewOnClickListener();
+        mDriverPicAdapter.registerOnItemClickListener(gridViewOnClickListener);
 
         tvResult = findViewById(R.id.tvDetectResult);
+    }
 
+    private void initEventBusEvent() {
+        EventBus.getDefault().register(this);//EventBus注册
+    }
+
+    private TTSUtils ttsUtils;
+
+    private void initTTS() {
+        ttsUtils = new TTSUtils(MainActivity.this);
+    }
+
+
+    @Subscribe(threadMode = ThreadMode.MAIN_ORDERED)
+    public void onEvent(DangerDriverEvent event) {
+        if (event.getType() == 0) {
+            // TODO: 可以有更多判断，闭眼，打电话，抽烟，打瞌睡，双手离开方向盘等
+            if (Float.parseFloat(event.getEyeCloseScore()) > 35) {
+                ttsUtils.speak("Eye Close");
+            } else if (Float.parseFloat(event.getCellPhoneScore()) > 50) {
+                ttsUtils.speak("CellPhone");
+            } else if (Float.parseFloat(event.getSmokeScore()) > 45) {
+                ttsUtils.speak("Smoke");
+            } else if (Float.parseFloat(event.getYawningScore()) > 30) {
+                ttsUtils.speak("Yawning");
+            } else {
+                ttsUtils.speak("Good Drive");
+            }
+
+        }
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        HandlerThread ht = new HandlerThread("Video Analys", Process.THREAD_PRIORITY_DISPLAY);
-        ht.start();
-        showVideoHandler = new VideoHandler(ht.getLooper());
 
     }
 
@@ -85,54 +125,37 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 driverBehavior = DriverBehavior.getInstance();
             }
         }).start();
+
+        initPicVideoStorePath(this);
+
     }
 
     @Override
-    public void onClick(View v) {
-        switch (v.getId()) {
-            case R.id.ivOrig:
-                showIndex++;
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        synchronized (MainActivity.this) {
-                            String ret = driverBehavior.
-                                    driver_behavior(MainActivity.this, resids[showIndex % resids.length]);
-
-                            ParseJsonResult(ret, true);
-                        }
-                    }
-                }).start();
-
-
-                break;
-
-            case R.id.btnVideo:
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            FFMpegUtils.grabberFFmpegImage(videoPath, 80);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }).start();
-
-                break;
-
-            case R.id.btnShowVideo:
-                showVideoHandler.sendEmptyMessageDelayed(0, 1000);
-                break;
-
-            default:
-                break;
-        }
+    protected void onDestroy() {
+        super.onDestroy();
+        EventBus.getDefault().unregister(this);
     }
+
+    private void initPicVideoStorePath(Context ctx) {
+        File dir = ctx.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        Constants.CAMERA_PIC_CACHE_PATH = (dir == null ? "" : (dir.getAbsolutePath() + "/"));
+        dir = ctx.getExternalFilesDir(Environment.DIRECTORY_MOVIES);
+        Constants.CAMERA_VIDEO_CACHE_PATH = (dir == null ? "" : (dir.getAbsolutePath() + "/"));
+    }
+
 
     public static final String TAG = "HHHH";
 
     private void ParseJsonResult(String jsonStr, boolean showMipmapPic) {
+        ParseJsonResult(jsonStr, showMipmapPic, false);
+    }
+
+    private void ParseJsonResult(String jsonStr, boolean showMipmapPic, boolean savePic) {
+        ParseJsonResult(jsonStr, showMipmapPic, false, null);
+    }
+
+    private void ParseJsonResult(String jsonStr, boolean showMipmapPic, boolean savePic, Bitmap bm) {
+        // 4、对结果JSON字符串进行解析
         Gson gson = new Gson();
         Person p = gson.fromJson(jsonStr, Person.class);
 
@@ -144,22 +167,27 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         DecimalFormat df = new DecimalFormat("#.00");
         String eyeCloseScore = df.format(attributes.getEyes_closed().getScore() * 100);
         String cellPhoneScore = df.format(attributes.getCellphone().getScore() * 100);
-        String smokeScore = df.format(attributes.getSmoke().getScore() * 100) ;
-        String yawningScore = df.format(attributes.getYawning().getScore() * 100) ;
+        String smokeScore = df.format(attributes.getSmoke().getScore() * 100);
+        String yawningScore = df.format(attributes.getYawning().getScore() * 100);
+        // TODO:   可以获取更多属性比如 双手离开方向盘
+        String bothHandsLeavingWheelScore = df.format(attributes.getBoth_hands_leaving_wheel().getScore() * 100);
+        // TODO: Step1 创建 DangerDriverEvent 事件 DangerDriveEvent event = new DangerDriverEvent();
+        DangerDriverEvent dangerDriverEvent = new DangerDriverEvent();//初始化消息类
+        dangerDriverEvent.setType(0);
+        dangerDriverEvent.setCellPhoneScore(cellPhoneScore);
+        dangerDriverEvent.setEyeCloseScore(eyeCloseScore);
+        dangerDriverEvent.setSmokeScore(smokeScore);
+        dangerDriverEvent.setYawningScore(yawningScore);
+        // 添加更多的属性 比如 双手离开方向盘
+
+        // TODO: Step2调用  EventBus.getDerault().post(event) 发送事件
+        EventBus.getDefault().post(dangerDriverEvent);
 
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (showMipmapPic) iv.setImageResource(resids[showIndex % resids.length]);
-
-                StringBuilder sb = new StringBuilder();
-                sb.append("Eye close Score: ").append(eyeCloseScore).append( " %").append("\r\n")
-                        .append("CellPhone Score: ").append(cellPhoneScore).append( " %").append("\r\n")
-                        .append("Smoke Score: ").append(smokeScore).append( " %").append("\r\n")
-                        .append("yawning Score: ").append(yawningScore).append( " %").append("\r\n");
                 tvResult.setTextSize(35);
-                tvResult.setText(sb.toString());
-//                Log.d(TAG, " ParseJsonResult " + sb.toString());
+                tvResult.setText(dangerDriverEvent.toString());
             }
         });
 
@@ -167,42 +195,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
 
-    public class VideoHandler extends Handler {
-        public VideoHandler(Looper looper) {
-
-        }
-
-        @Override
-        public void handleMessage(@NonNull Message msg) {
-            super.handleMessage(msg);
-            switch (msg.what) {
-                case 0:
-                    Log.d(TAG, "videoBitmaps : " + FFMpegUtils.videoBitmaps.size());
-                    if (!FFMpegUtils.videoBitmaps.isEmpty()) {
-                        Bitmap detectBm = FFMpegUtils.videoBitmaps.poll();
-                        iv.setImageBitmap(detectBm);
-                        Message message = Message.obtain();
-                        message.what = 0;
-                        if (FFMpegUtils.videoBitmaps.size() % 3 == 0) {
-                            checkAndDetected(detectBm);
-                        }
-                        sendMessageDelayed(message, 150);
-                    }
-                    break;
-            }
-        }
-    }
-
     private void checkAndDetected(Bitmap detectBm) {
 
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    String driver_behavior = driverBehavior.driver_behavior(MainActivity.this, detectBm);
-                    if (!TextUtils.isEmpty(driver_behavior))
-                        ParseJsonResult(driver_behavior, false);
-                }
-            }).start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String driver_behavior = driverBehavior.driver_behavior(MainActivity.this, detectBm);
+                if (!TextUtils.isEmpty(driver_behavior))
+                    ParseJsonResult(driver_behavior, false, true, detectBm);
+            }
+        }).start();
 
 
     }
@@ -235,14 +237,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (shouldShowRequestPermissionRationale(STORAGE_PERMISSIONS)) {
             new ConfirmationDialog().show(getSupportFragmentManager(), "haha");
         } else {
-            requestPermissions(STORAGE_PERMISSIONS, REQUEST_EXTERNAL_STORAGE_PERMISSION);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                requestPermissions(STORAGE_PERMISSIONS, REQUEST_EXTERNAL_STORAGE_PERMISSION);
+            }
         }
     }
 
     private boolean shouldShowRequestPermissionRationale(String[] permissions) {
         for (String permission : permissions) {
-            if (shouldShowRequestPermissionRationale(permission)) {
-                return true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (shouldShowRequestPermissionRationale(permission)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -253,6 +259,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      * Shows OK/Cancel confirmation dialog about camera permission.
      */
     public static final int REQUEST_EXTERNAL_STORAGE_PERMISSION = 0;
+
+    @Override
+    public void onClick(View v) {
+
+    }
 
     public static class ConfirmationDialog extends DialogFragment {
 
@@ -280,6 +291,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                 }
                             })
                     .create();
+        }
+    }
+
+
+    class GridViewOnClickListener implements DriverPicAdapter.IOnItemClickListener {
+        @Override
+        public void onItemClick(int pos) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (MainActivity.this) {
+                        String ret = driverBehavior.
+                                driver_behavior(MainActivity.this, resids[pos]);
+                        ParseJsonResult(ret, false);
+                    }
+                }
+            }).start();
         }
     }
 

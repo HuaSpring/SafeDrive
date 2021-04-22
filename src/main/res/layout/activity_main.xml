@@ -7,25 +7,12 @@
     android:orientation="vertical"
     tools:context=".MainActivity">
 
-  <ImageView
-      android:id="@+id/ivOrig"
-      android:src="@mipmap/driver1"
-      android:layout_width="match_parent"
-      android:layout_height="300dp"
-      android:scaleType="fitXY"/>
-
-
-  <Button
-      android:id="@+id/btnVideo"
-      android:text="视频"
+  <GridView
+      android:id="@+id/gv"
+      android:numColumns="3"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"/>
 
-  <Button
-      android:id="@+id/btnShowVideo"
-      android:text="显示视频帧的驾驶行为"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"/>
 
 
     <TextView

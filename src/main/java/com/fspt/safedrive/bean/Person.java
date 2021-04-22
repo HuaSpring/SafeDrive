@@ -116,6 +116,22 @@ public class Person {
 
                 private Double score;
                 private Double threshold;
+
+                public Double getScore() {
+                    return score;
+                }
+
+                public void setScore(Double score) {
+                    this.score = score;
+                }
+
+                public Double getThreshold() {
+                    return threshold;
+                }
+
+                public void setThreshold(Double threshold) {
+                    this.threshold = threshold;
+                }
             }
 
             public static class EyesClosedDTO {
